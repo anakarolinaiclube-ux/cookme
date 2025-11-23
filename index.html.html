@@ -162,48 +162,49 @@
         async function generateRecipes() {
     const ingredients = document.getElementById("ingredients-input").value;
 
-    if (!ingredients || ingredients.trim() === "") {
+    if (!ingredients.trim()) {
         alert("Por favor, digite seus ingredientes.");
         return;
     }
 
-    // Mostrar loading e esconder resultados
-    document.getElementById("loading").classList.remove("hidden");
+    // Mostrar loading
+    document.getElementById("loading").classList.replace("hidden", "flex");
     document.getElementById("results-area").classList.add("hidden");
+    document.getElementById("shopping-list-container").classList.add("hidden");
 
     try {
         const response = await fetch("/api/recipes", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ ingredients })
         });
 
         const data = await response.json();
 
-        if (!data || !data.recipes) {
-            alert("Erro ao gerar receitas.");
+        if (data.error) {
+            alert("Erro: " + data.error);
+            document.getElementById("loading").classList.replace("flex", "hidden");
             return;
         }
 
-        // Salva receitas corretamente
-        currentRecipes = JSON.parse(data.recipes);
+        // Armazena as receitas geradas pela API segura
+        currentRecipes = data.recipes;
 
-        // Renderiza cards
+        // Renderiza os cards
         renderRecipes();
 
         // Exibe resultados
-        document.getElementById("loading").classList.add("hidden");
+        document.getElementById("loading").classList.replace("flex", "hidden");
         document.getElementById("results-area").classList.remove("hidden");
         document.getElementById("results-area").scrollIntoView({ behavior: "smooth" });
 
     } catch (err) {
         console.error(err);
         alert("Erro ao gerar receitas.");
-        document.getElementById("loading").classList.add("hidden");
+        document.getElementById("loading").classList.replace("flex", "hidden");
     }
 }
+
 
 
 

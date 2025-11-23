@@ -10,7 +10,6 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Ingredientes não enviados." });
         }
 
-        // CHAVE DA OPENAI
         const apiKey = process.env.OPENAI_API_KEY;
 
         if (!apiKey) {
@@ -19,7 +18,7 @@ export default async function handler(req, res) {
 
         const prompt = `
             Gere 5 receitas criativas baseadas APENAS nos ingredientes: "${ingredients}".
-            Retorne um JSON com:
+            Retorne somente JSON puro, com a estrutura:
             [
                 {
                     "title": "",
@@ -38,7 +37,7 @@ export default async function handler(req, res) {
             body: JSON.stringify({
                 model: "gpt-4o-mini",
                 messages: [
-                    { role: "system", content: "Responda apenas JSON válido" },
+                    { role: "system", content: "Responda apenas JSON válido, sem texto antes ou depois." },
                     { role: "user", content: prompt }
                 ]
             })
@@ -46,14 +45,31 @@ export default async function handler(req, res) {
 
         const data = await response.json();
 
-        const text = data.choices[0].message.content;
+        // ⚠️ Se houver erro da OpenAI, pare aqui
+        if (data.error) {
+            console.error("Erro OpenAI:", data.error);
+            return res.status(500).json({ error: "Erro na IA: " + data.error.message });
+        }
 
-        res.status(200).json({
-            recipes: JSON.parse(text)
-        });
+        let raw = data.choices[0].message.content;
+
+        // Limpeza de segurança (caso venha Markdown ou texto solto)
+        raw = raw.replace(/```json/gi, "")
+                 .replace(/```/g, "")
+                 .trim();
+
+        let json;
+        try {
+            json = JSON.parse(raw);
+        } catch (parseErr) {
+            console.error("Erro ao converter JSON:", parseErr, "Conteúdo recebido:", raw);
+            return res.status(500).json({ error: "Falha ao interpretar JSON da IA." });
+        }
+
+        return res.status(200).json({ recipes: json });
 
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Erro interno no servidor." });
+        console.error("Erro geral:", err);
+        return res.status(500).json({ error: "Erro interno no servidor." });
     }
 }

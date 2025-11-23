@@ -159,91 +159,45 @@
         }
 
         // --- NOVA LÓGICA DE GERAÇÃO COM IA ---
-        async function suggestRecipes() {
-            const input = document.getElementById('ingredients-input').value;
-            
-            // ⚠️ IMPORTANTE: Insira sua API Key da OpenAI aqui
-            const apiKey = "SUA_CHAVE_API_OPENAI_AQUI"; 
+        async function generateRecipes() {
+    const ingredients = document.getElementById("ingredients-input").value;
 
-            if(!input.trim()) {
-                alert("Por favor, digite alguns ingredientes!");
-                return;
-            }
+    if (!ingredients || ingredients.trim() === "") {
+        alert("Por favor, digite seus ingredientes.");
+        return;
+    }
 
-            if(apiKey === "SUA_CHAVE_API_OPENAI_AQUI") {
-                alert("Você precisa inserir uma API Key da OpenAI no código para a IA funcionar.");
-                return;
-            }
+    // mostra loading
+    const resultsBox = document.getElementById("results");
+    resultsBox.innerHTML = "<p>Gerando receitas... 🍳</p>";
 
-            // UI Update: Loading
-            document.getElementById('loading').classList.replace('hidden', 'flex');
-            document.getElementById('results-area').classList.add('hidden');
-            document.getElementById('shopping-list-container').classList.add('hidden');
+    try {
+        const response = await fetch("/api/recipes", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ ingredients })
+        });
 
-            // 1. Montar o Prompt
-            const prompt = `
-                Com base EXCLUSIVAMENTE nos ingredientes fornecidos: "${input}", gere 5 receitas possíveis.
-                Seja criativo, mas realista.
-                
-                Retorne APENAS um JSON válido (sem markdown, sem backticks) contendo um array de objetos com esta estrutura exata:
-                [
-                    {
-                        "title": "Nome da Receita",
-                        "missing": ["Item faltante 1", "Item faltante 2"], 
-                        "steps": ["Passo 1", "Passo 2", "Passo 3"]
-                    }
-                ]
-                
-                Regras:
-                1. O campo "missing" deve listar apenas ingredientes essenciais que não foram citados no input (ex: sal e óleo são básicos, mas se a receita precisa de creme de leite e o usuário não disse, coloque no missing).
-                2. O campo "steps" deve ser um array de strings com instruções curtas.
-            `;
+        const data = await response.json();
 
-            try {
-                // 2. Chamar a IA
-                const response = await fetch("https://api.openai.com/v1/chat/completions", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${apiKey}`
-                    },
-                    body: JSON.stringify({
-                        model: "gpt-3.5-turbo",
-                        messages: [
-                            { role: "system", content: "Você é um chef assistente que retorna output estritamente em JSON." },
-                            { role: "user", content: prompt }
-                        ],
-                        temperature: 0.7
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error("Falha na comunicação com a IA");
-                }
-
-                const data = await response.json();
-                let content = data.choices[0].message.content;
-
-                // 3. Tratar a resposta JSON (Limpeza de segurança)
-                content = content.replace(/```json/g, '').replace(/```/g, '').trim();
-                
-                // Atualiza a variável global com os dados reais da IA
-                currentRecipes = JSON.parse(content);
-
-                // Renderiza
-                renderRecipes();
-                
-                // Exibe resultados
-                document.getElementById('loading').classList.replace('flex', 'hidden');
-                document.getElementById('results-area').classList.remove('hidden');
-                document.getElementById('results-area').scrollIntoView({ behavior: 'smooth' });
-
-            } catch (error) {
-                console.error(error);
-                document.getElementById('loading').classList.replace('flex', 'hidden');
-                alert("Ocorreu um erro ao gerar as receitas. Verifique o console ou sua API Key.");
-            }
+        if (data.error) {
+            resultsBox.innerHTML = `<p style="color:red;">${data.error}</p>`;
+            return;
         }
+
+        resultsBox.innerHTML = `
+            <pre style="white-space:pre-wrap;font-family:inherit;">
+${data.recipes}
+            </pre>
+        `;
+    } catch (err) {
+        resultsBox.innerHTML = "<p style='color:red;'>Erro ao gerar receitas.</p>";
+        console.error(err);
+    }
+}
+
 
         // Renderizar Cards (Atualizado para ler currentRecipes)
         function renderRecipes() {

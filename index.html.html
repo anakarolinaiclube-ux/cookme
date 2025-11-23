@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CookMe – Assistente de Refeições</title>
+    
+    <!-- Fonte Poppins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Biblioteca para PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- Ícones (Lucide/Feather similar via FontAwesome para simplicidade) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Poppins', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            black: '#1a1a1a',
+                            green: '#10B981', // Emerald 500
+                            darkGreen: '#059669',
+                            light: '#F3F4F6'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #ffffff;
+            color: #1a1a1a;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .loader {
+            border-top-color: #10B981;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col">
+
+    <!-- Navbar Simples -->
+    <nav class="w-full py-6 px-8 flex justify-between items-center max-w-6xl mx-auto">
+        <div class="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <i class="fa-solid fa-leaf text-brand-green"></i> CookMe
+        </div>
+    </nav>
+
+    <!-- TELA 1: HOME / LANDING -->
+    <section id="landing-page" class="flex-grow flex flex-col items-center justify-center text-center px-4 fade-in">
+        <div class="max-w-2xl space-y-6">
+            <h1 class="text-5xl font-bold leading-tight">
+                Cozinhe melhor com o que <span class="text-brand-green">você já tem.</span>
+            </h1>
+            <p class="text-gray-500 text-lg max-w-md mx-auto">
+                O CookMe é seu assistente inteligente. Digite os ingredientes que tem em casa, receba sugestões incríveis e gere sua lista de compras em segundos.
+            </p>
+            <button onclick="goToDashboard()" class="mt-8 px-8 py-4 bg-brand-black text-white rounded-full font-medium hover:bg-brand-green transition-all transform hover:scale-105 shadow-lg">
+                Ir para o CookMe <i class="fa-solid fa-arrow-right ml-2"></i>
+            </button>
+        </div>
+    </section>
+
+    <!-- TELA 2: DASHBOARD -->
+    <section id="dashboard" class="hidden max-w-5xl mx-auto px-4 py-8 w-full fade-in pb-20">
+        
+        <!-- Input Central -->
+        <div class="bg-gray-50 rounded-3xl p-8 shadow-sm border border-gray-100 mb-12 text-center">
+            <h2 class="text-2xl font-semibold mb-4">O que tem na sua geladeira?</h2>
+            <div class="relative max-w-xl mx-auto">
+                <input type="text" id="ingredients-input" placeholder="Ex: frango, arroz, tomate, cebola..." 
+                    class="w-full p-4 pl-6 rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-green shadow-sm text-lg transition-all">
+            </div>
+            <button onclick="suggestRecipes()" class="mt-6 px-8 py-3 bg-brand-green text-white rounded-xl font-medium hover:bg-brand-darkGreen transition-all shadow-md hover:shadow-lg">
+                <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Sugerir Receitas
+            </button>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading" class="hidden flex-col items-center justify-center py-12">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+            <p class="text-gray-500 animate-pulse">A IA está criando receitas deliciosas...</p>
+        </div>
+
+        <!-- Resultados -->
+        <div id="results-area" class="hidden">
+            
+            <div class="flex justify-between items-end mb-6">
+                <h3 class="text-xl font-bold">Sugestões para você</h3>
+                <button onclick="exportPDF()" class="text-sm text-gray-500 hover:text-brand-green underline">
+                    <i class="fa-solid fa-file-pdf mr-1"></i> Exportar tudo em PDF
+                </button>
+            </div>
+
+            <!-- Grid de Receitas -->
+            <div id="recipes-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+                <!-- Cards serão inseridos aqui via JS -->
+            </div>
+
+            <!-- Área da Lista de Compras -->
+            <div class="text-center mb-8">
+                <button onclick="generateShoppingList()" id="btn-shopping-list" class="px-8 py-3 border-2 border-brand-black text-brand-black rounded-xl font-medium hover:bg-brand-black hover:text-white transition-all">
+                    <i class="fa-solid fa-basket-shopping mr-2"></i> Gerar lista de compras
+                </button>
+            </div>
+
+            <!-- Container da Lista de Compras (Gerado) -->
+            <div id="shopping-list-container" class="hidden bg-brand-black text-white rounded-3xl p-8 shadow-xl relative overflow-hidden">
+                <div class="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-brand-green rounded-full opacity-20 blur-2xl"></div>
+                
+                <h3 class="text-2xl font-bold mb-6 border-b border-gray-700 pb-4">Lista de Compras</h3>
+                
+                <div id="shopping-list-content" class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Categorias serão inseridas aqui -->
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="py-6 text-center text-gray-400 text-sm mt-auto">
+        &copy; 2023 CookMe. Minimalista & Inteligente.
+    </footer>
+
+    <!-- Lógica do Sistema -->
+    <script>
+        // Dados Mockados (Simulando a IA para o protótipo funcionar sem API Key real)
+        const mockRecipesDB = [
+            {
+                title: "Frango Grelhado com Arroz de Tomate",
+                missing: ["Salsinha", "Alho"],
+                steps: ["Tempere o frango com sal e pimenta.", "Refogue o arroz com tomate picado.", "Grelhe o frango até dourar.", "Sirva decorado com salsinha."]
+            },
+            {
+                title: "Risoto Rápido de Frango",
+                missing: ["Queijo Parmesão", "Manteiga", "Vinho Branco"],
+                steps: ["Frite o frango em cubos.", "Adicione o arroz e refogue.", "Acrescente água aos poucos até cozinhar.", "Finalize com manteiga e queijo."]
+            },
+            {
+                title: "Salada Caesar com Tiras de Frango",
+                missing: ["Alface Americana", "Molho Caesar", "Croutons"],
+                steps: ["Grelhe o frango em tiras.", "Lave bem a alface.", "Misture todos os ingredientes em uma tigela.", "Adicione o molho e sirva."]
+            },
+            {
+                title: "Tomates Recheados com Arroz e Frango",
+                missing: ["Azeite de Oliva", "Orégano"],
+                steps: ["Retire a polpa dos tomates.", "Misture arroz cozido e frango desfiado.", "Recheie os tomates.", "Asse por 15 min com azeite e orégano."]
+            },
+            {
+                title: "Sopa Leve de Frango e Legumes",
+                missing: ["Cenoura", "Batata", "Caldo de Galinha"],
+                steps: ["Cozinhe o frango com água.", "Adicione cenoura e batata picadas.", "Tempere a gosto.", "Deixe cozinhar até os legumes amaciarem."]
+            }
+        ];
+
+        // Navegação
+        function goToDashboard() {
+            document.getElementById('landing-page').classList.add('hidden');
+            const dashboard = document.getElementById('dashboard');
+            dashboard.classList.remove('hidden');
+        }
+
+        // Função 1: Sugerir Receitas (Simulação de IA)
+        function suggestRecipes() {
+            const input = document.getElementById('ingredients-input').value;
+            
+            if(!input.trim()) {
+                alert("Por favor, digite alguns ingredientes!");
+                return;
+            }
+
+            // UI Update
+            document.getElementById('loading').classList.replace('hidden', 'flex');
+            document.getElementById('results-area').classList.add('hidden');
+            document.getElementById('shopping-list-container').classList.add('hidden');
+
+            // Timeout para simular processamento da IA
+            setTimeout(() => {
+                document.getElementById('loading').classList.replace('flex', 'hidden');
+                renderRecipes();
+                document.getElementById('results-area').classList.remove('hidden');
+                // Scroll suave para os resultados
+                document.getElementById('results-area').scrollIntoView({ behavior: 'smooth' });
+            }, 1500);
+        }
+
+        // Renderizar Cards
+        function renderRecipes() {
+            const container = document.getElementById('recipes-grid');
+            container.innerHTML = ''; // Limpar anterior
+
+            mockRecipesDB.forEach((recipe, index) => {
+                const html = `
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all">
+                        <div class="flex justify-between items-start mb-3">
+                            <h4 class="font-bold text-lg text-brand-black">${recipe.title}</h4>
+                            <span class="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full">Fácil</span>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <p class="text-xs text-gray-400 uppercase font-semibold tracking-wider mb-1">Falta comprar:</p>
+                            <div class="flex flex-wrap gap-2">
+                                ${recipe.missing.map(item => `<span class="text-sm text-red-500 bg-red-50 px-2 py-0.5 rounded-md">• ${item}</span>`).join('')}
+                            </div>
+                        </div>
+
+                        <div>
+                            <p class="text-xs text-gray-400 uppercase font-semibold tracking-wider mb-1">Preparo:</p>
+                            <ol class="text-sm text-gray-600 list-decimal list-inside space-y-1">
+                                ${recipe.steps.map(step => `<li>${step}</li>`).join('')}
+                            </ol>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += html;
+            });
+        }
+
+        // Função 2: Gerar Lista de Compras
+        function generateShoppingList() {
+            const container = document.getElementById('shopping-list-container');
+            const content = document.getElementById('shopping-list-content');
+            
+            // Coletar todos os ingredientes faltantes de todas as receitas sugeridas
+            // (Em um app real, o usuário selecionaria quais receitas quer fazer)
+            let allMissingItems = [];
+            mockRecipesDB.forEach(r => allMissingItems.push(...r.missing));
+            
+            // Remover duplicatas
+            allMissingItems = [...new Set(allMissingItems)];
+
+            // Categorização Simples (Lógica Mockada)
+            const categories = {
+                'Hortifruti 🥦': [],
+                'Açougue & Frios 🥩': [],
+                'Grãos & Mercearia 🍞': [],
+                'Outros 🧂': []
+            };
+
+            // Algoritmo simples de categorização por palavra-chave
+            allMissingItems.forEach(item => {
+                const lower = item.toLowerCase();
+                if(lower.includes('alface') || lower.includes('cenoura') || lower.includes('batata') || lower.includes('salsinha') || lower.includes('alho')) {
+                    categories['Hortifruti 🥦'].push(item);
+                } else if (lower.includes('queijo') || lower.includes('manteiga') || lower.includes('caldo')) {
+                    categories['Açougue & Frios 🥩'].push(item);
+                } else if (lower.includes('croutons') || lower.includes('vinho')) {
+                    categories['Grãos & Mercearia 🍞'].push(item);
+                } else {
+                    categories['Outros 🧂'].push(item);
+                }
+            });
+
+            // Renderizar HTML
+            content.innerHTML = '';
+            for (const [catName, items] of Object.entries(categories)) {
+                if(items.length > 0) {
+                    content.innerHTML += `
+                        <div>
+                            <h5 class="text-brand-green font-semibold mb-2 uppercase text-sm tracking-widest">${catName}</h5>
+                            <ul class="space-y-2">
+                                ${items.map(i => `<li class="flex items-center gap-2"><div class="w-1.5 h-1.5 bg-white rounded-full"></div> ${i}</li>`).join('')}
+                            </ul>
+                        </div>
+                    `;
+                }
+            }
+
+            container.classList.remove('hidden');
+            container.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Função 3: Exportar PDF
+        function exportPDF() {
+            const element = document.getElementById('dashboard');
+            
+            // Configurações do PDF
+            const opt = {
+                margin:       0.5,
+                filename:     'Minha_Lista_CookMe.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+
+            // Ocultar botões antes de gerar para ficar limpo
+            const btns = document.querySelectorAll('button');
+            btns.forEach(b => b.style.display = 'none');
+
+            // Gerar
+            html2pdf().set(opt).from(element).save().then(() => {
+                // Mostrar botões de volta
+                btns.forEach(b => b.style.display = 'inline-block');
+                // Ajustar display flex específicos se necessário
+                document.getElementById('btn-shopping-list').style.display = 'inline-block'; 
+            });
+        }
+    </script>
+</body>
+</html>

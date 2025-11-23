@@ -148,83 +148,127 @@
 
     <!-- Lógica do Sistema -->
     <script>
-        // Dados Mockados (Simulando a IA para o protótipo funcionar sem API Key real)
-        const mockRecipesDB = [
-            {
-                title: "Frango Grelhado com Arroz de Tomate",
-                missing: ["Salsinha", "Alho"],
-                steps: ["Tempere o frango com sal e pimenta.", "Refogue o arroz com tomate picado.", "Grelhe o frango até dourar.", "Sirva decorado com salsinha."]
-            },
-            {
-                title: "Risoto Rápido de Frango",
-                missing: ["Queijo Parmesão", "Manteiga", "Vinho Branco"],
-                steps: ["Frite o frango em cubos.", "Adicione o arroz e refogue.", "Acrescente água aos poucos até cozinhar.", "Finalize com manteiga e queijo."]
-            },
-            {
-                title: "Salada Caesar com Tiras de Frango",
-                missing: ["Alface Americana", "Molho Caesar", "Croutons"],
-                steps: ["Grelhe o frango em tiras.", "Lave bem a alface.", "Misture todos os ingredientes em uma tigela.", "Adicione o molho e sirva."]
-            },
-            {
-                title: "Tomates Recheados com Arroz e Frango",
-                missing: ["Azeite de Oliva", "Orégano"],
-                steps: ["Retire a polpa dos tomates.", "Misture arroz cozido e frango desfiado.", "Recheie os tomates.", "Asse por 15 min com azeite e orégano."]
-            },
-            {
-                title: "Sopa Leve de Frango e Legumes",
-                missing: ["Cenoura", "Batata", "Caldo de Galinha"],
-                steps: ["Cozinhe o frango com água.", "Adicione cenoura e batata picadas.", "Tempere a gosto.", "Deixe cozinhar até os legumes amaciarem."]
-            }
-        ];
+       // Variável global para armazenar as receitas retornadas pela IA
+        let currentRecipes = [];
 
-        // Navegação
+        // Navegação (Mantida igual)
         function goToDashboard() {
             document.getElementById('landing-page').classList.add('hidden');
             const dashboard = document.getElementById('dashboard');
             dashboard.classList.remove('hidden');
         }
 
-        // Função 1: Sugerir Receitas (Simulação de IA)
-        function suggestRecipes() {
+        // --- NOVA LÓGICA DE GERAÇÃO COM IA ---
+        async function suggestRecipes() {
             const input = document.getElementById('ingredients-input').value;
             
+            // ⚠️ IMPORTANTE: Insira sua API Key da OpenAI aqui
+            const apiKey = "SUA_CHAVE_API_OPENAI_AQUI"; 
+
             if(!input.trim()) {
                 alert("Por favor, digite alguns ingredientes!");
                 return;
             }
 
-            // UI Update
+            if(apiKey === "SUA_CHAVE_API_OPENAI_AQUI") {
+                alert("Você precisa inserir uma API Key da OpenAI no código para a IA funcionar.");
+                return;
+            }
+
+            // UI Update: Loading
             document.getElementById('loading').classList.replace('hidden', 'flex');
             document.getElementById('results-area').classList.add('hidden');
             document.getElementById('shopping-list-container').classList.add('hidden');
 
-            // Timeout para simular processamento da IA
-            setTimeout(() => {
-                document.getElementById('loading').classList.replace('flex', 'hidden');
+            // 1. Montar o Prompt
+            const prompt = `
+                Com base EXCLUSIVAMENTE nos ingredientes fornecidos: "${input}", gere 5 receitas possíveis.
+                Seja criativo, mas realista.
+                
+                Retorne APENAS um JSON válido (sem markdown, sem backticks) contendo um array de objetos com esta estrutura exata:
+                [
+                    {
+                        "title": "Nome da Receita",
+                        "missing": ["Item faltante 1", "Item faltante 2"], 
+                        "steps": ["Passo 1", "Passo 2", "Passo 3"]
+                    }
+                ]
+                
+                Regras:
+                1. O campo "missing" deve listar apenas ingredientes essenciais que não foram citados no input (ex: sal e óleo são básicos, mas se a receita precisa de creme de leite e o usuário não disse, coloque no missing).
+                2. O campo "steps" deve ser um array de strings com instruções curtas.
+            `;
+
+            try {
+                // 2. Chamar a IA
+                const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: "gpt-3.5-turbo",
+                        messages: [
+                            { role: "system", content: "Você é um chef assistente que retorna output estritamente em JSON." },
+                            { role: "user", content: prompt }
+                        ],
+                        temperature: 0.7
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error("Falha na comunicação com a IA");
+                }
+
+                const data = await response.json();
+                let content = data.choices[0].message.content;
+
+                // 3. Tratar a resposta JSON (Limpeza de segurança)
+                content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+                
+                // Atualiza a variável global com os dados reais da IA
+                currentRecipes = JSON.parse(content);
+
+                // Renderiza
                 renderRecipes();
+                
+                // Exibe resultados
+                document.getElementById('loading').classList.replace('flex', 'hidden');
                 document.getElementById('results-area').classList.remove('hidden');
-                // Scroll suave para os resultados
                 document.getElementById('results-area').scrollIntoView({ behavior: 'smooth' });
-            }, 1500);
+
+            } catch (error) {
+                console.error(error);
+                document.getElementById('loading').classList.replace('flex', 'hidden');
+                alert("Ocorreu um erro ao gerar as receitas. Verifique o console ou sua API Key.");
+            }
         }
 
-        // Renderizar Cards
+        // Renderizar Cards (Atualizado para ler currentRecipes)
         function renderRecipes() {
             const container = document.getElementById('recipes-grid');
-            container.innerHTML = ''; // Limpar anterior
+            container.innerHTML = ''; 
 
-            mockRecipesDB.forEach((recipe, index) => {
+            if(currentRecipes.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">Nenhuma receita encontrada.</p>';
+                return;
+            }
+
+            currentRecipes.forEach((recipe) => {
                 const html = `
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all">
                         <div class="flex justify-between items-start mb-3">
                             <h4 class="font-bold text-lg text-brand-black">${recipe.title}</h4>
-                            <span class="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full">Fácil</span>
+                            <span class="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full">IA</span>
                         </div>
                         
                         <div class="mb-4">
                             <p class="text-xs text-gray-400 uppercase font-semibold tracking-wider mb-1">Falta comprar:</p>
                             <div class="flex flex-wrap gap-2">
-                                ${recipe.missing.map(item => `<span class="text-sm text-red-500 bg-red-50 px-2 py-0.5 rounded-md">• ${item}</span>`).join('')}
+                                ${recipe.missing.length > 0 
+                                    ? recipe.missing.map(item => `<span class="text-sm text-red-500 bg-red-50 px-2 py-0.5 rounded-md">• ${item}</span>`).join('') 
+                                    : '<span class="text-sm text-green-600 bg-green-50 px-2 py-0.5 rounded-md">Tudo ok!</span>'}
                             </div>
                         </div>
 
@@ -240,20 +284,18 @@
             });
         }
 
-        // Função 2: Gerar Lista de Compras
+        // Função 2: Gerar Lista de Compras (Atualizado para ler currentRecipes)
         function generateShoppingList() {
             const container = document.getElementById('shopping-list-container');
             const content = document.getElementById('shopping-list-content');
             
-            // Coletar todos os ingredientes faltantes de todas as receitas sugeridas
-            // (Em um app real, o usuário selecionaria quais receitas quer fazer)
             let allMissingItems = [];
-            mockRecipesDB.forEach(r => allMissingItems.push(...r.missing));
+            currentRecipes.forEach(r => allMissingItems.push(...r.missing));
             
             // Remover duplicatas
             allMissingItems = [...new Set(allMissingItems)];
 
-            // Categorização Simples (Lógica Mockada)
+            // Categorização simples por palavras-chave
             const categories = {
                 'Hortifruti 🥦': [],
                 'Açougue & Frios 🥩': [],
@@ -261,14 +303,13 @@
                 'Outros 🧂': []
             };
 
-            // Algoritmo simples de categorização por palavra-chave
             allMissingItems.forEach(item => {
                 const lower = item.toLowerCase();
-                if(lower.includes('alface') || lower.includes('cenoura') || lower.includes('batata') || lower.includes('salsinha') || lower.includes('alho')) {
+                if(lower.match(/alface|cenoura|batata|salsinha|alho|cebola|tomate|fruta/)) {
                     categories['Hortifruti 🥦'].push(item);
-                } else if (lower.includes('queijo') || lower.includes('manteiga') || lower.includes('caldo')) {
+                } else if (lower.match(/queijo|manteiga|caldo|carne|frango|ovo|leite|presunto/)) {
                     categories['Açougue & Frios 🥩'].push(item);
-                } else if (lower.includes('croutons') || lower.includes('vinho')) {
+                } else if (lower.match(/croutons|vinho|arroz|feijão|macarrão|farinha|açúcar/)) {
                     categories['Grãos & Mercearia 🍞'].push(item);
                 } else {
                     categories['Outros 🧂'].push(item);
@@ -277,8 +318,10 @@
 
             // Renderizar HTML
             content.innerHTML = '';
+            let hasItems = false;
             for (const [catName, items] of Object.entries(categories)) {
                 if(items.length > 0) {
+                    hasItems = true;
                     content.innerHTML += `
                         <div>
                             <h5 class="text-brand-green font-semibold mb-2 uppercase text-sm tracking-widest">${catName}</h5>
@@ -290,15 +333,18 @@
                 }
             }
 
+            if(!hasItems) {
+                content.innerHTML = '<p class="text-white text-opacity-80">Você já tem tudo para estas receitas!</p>';
+            }
+
             container.classList.remove('hidden');
             container.scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Função 3: Exportar PDF
+        // Função 3: Exportar PDF (Mantida igual)
         function exportPDF() {
             const element = document.getElementById('dashboard');
             
-            // Configurações do PDF
             const opt = {
                 margin:       0.5,
                 filename:     'Minha_Lista_CookMe.pdf',
@@ -307,15 +353,11 @@
                 jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
             };
 
-            // Ocultar botões antes de gerar para ficar limpo
             const btns = document.querySelectorAll('button');
             btns.forEach(b => b.style.display = 'none');
 
-            // Gerar
             html2pdf().set(opt).from(element).save().then(() => {
-                // Mostrar botões de volta
                 btns.forEach(b => b.style.display = 'inline-block');
-                // Ajustar display flex específicos se necessário
                 document.getElementById('btn-shopping-list').style.display = 'inline-block'; 
             });
         }
